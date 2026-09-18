@@ -1,6 +1,7 @@
 import ActivityKit
 import CoreLocation
 import SwiftUI
+import UserNotifications
 
 @MainActor @Observable
 final class ReunionStore {
@@ -8,6 +9,8 @@ final class ReunionStore {
 
     var estimate: RouteEstimate?
     var phase = JourneyPhase.free
+    var pendingInvitation: String?
+    var cloudNotificationWarning: String?
     var peers: [Peer] = []
     var friendPhase = JourneyPhase.free
     var friendCoordinate: Coordinate?
@@ -92,8 +95,6 @@ final class ReunionStore {
     var connectionError: String?
     var pendingEnd = false
     var name = "나"
-    var deviceToken: String?
-    var activityToken: String?
     var demoProgress = 0.0
     var demoRunning = false
     var isForeground = true
@@ -145,14 +146,16 @@ final class ReunionStore {
             if let saved = Self.restore(Meeting.self, key: "meeting") {
                 meeting = saved
             }
-            credentials = Self.restore(SessionCredentials.self, key: "credentials")
-            pendingEnd = Self.restore(Bool.self, key: "pendingEnd") ?? false
+            credentials = Self.restore(SessionCredentials.self, key: "cloudCredentials")
+            pendingEnd = credentials != nil && (Self.restore(Bool.self, key: "pendingEnd") ?? false)
             if credentials == nil && !UserDefaults.standard.bool(forKey: "reunion.currentLocationVersion") {
                 meeting = Meeting()
                 UserDefaults.standard.set(true, forKey: "reunion.currentLocationVersion")
                 save(meeting, key: "meeting")
             }
             if credentials != nil {
+                peers = Self.restore([Peer].self, key: "cloudPeers") ?? []
+                friendJoined = !peers.isEmpty
                 phase = Self.restore(JourneyPhase.self, key: "phase") ?? .free
                 estimate = Self.restore(RouteEstimate.self, key: "estimate")
                 departedAt = Self.restore(Date.self, key: "departedAt")
@@ -442,21 +445,10 @@ final class ReunionStore {
                 let created = try Activity.request(
                     attributes: attributes,
                     content: ActivityContent(state: state, staleDate: .now.addingTimeInterval(60)),
-                    pushType: isDemo ? nil : .token
+                    pushType: nil
                 )
                 activity = created
-                if !isDemo {
-                    Task {
-                        for await token in created.pushTokenUpdates {
-                            self.activityToken =
-                                token.map {
-                                    String(format: "%02x", $0)
-                                }
-                                .joined()
-                            await self.sync()
-                        }
-                    }
-                }
+
             } catch {
                 log("live_activity_failed", error.localizedDescription)
             }
@@ -497,7 +489,7 @@ final class ReunionStore {
     }
 
     func finish() async {
-        // Stop this device immediately, even if the relay is unreachable.
+        // Stop this device immediately, even if the iCloud is unreachable.
         await finishLocally()
 
         guard credentials != nil else { return }
@@ -515,12 +507,12 @@ final class ReunionStore {
             isSyncing = false
         }
         do {
-            _ = try await SessionClient.end(credentials)
+            _ = try await SessionClient.shared.end(credentials)
             pendingEnd = false
             save(pendingEnd, key: "pendingEnd")
             connectionError = nil
         } catch {
-            connectionError = "이 기기의 위치 공유는 중지됐어요. 서버 종료는 연결되면 재시도합니다."
+            connectionError = "이 기기의 위치 공유는 중지됐어요. iCloud 모임 종료는 연결되면 재시도합니다."
         }
     }
 
@@ -595,7 +587,7 @@ final class ReunionStore {
             }
         }
         pollCount += 1
-        if pollCount % 4 == 0 {
+        if pollCount % 10 == 0 {
             if pendingEnd {
                 await flushPendingEnd()
             } else if credentials != nil && phase != .complete {
@@ -609,7 +601,6 @@ final class ReunionStore {
 
     func connect(
 
-        server: String,
         name: String,
         code: String?
     ) async -> Bool {
@@ -625,11 +616,17 @@ final class ReunionStore {
             isLoading = false
         }
         do {
-            let reply = try await SessionClient.connect(
-                server: server.trimmingCharacters(in: .whitespacesAndNewlines),
+            guard credentials == nil else {
+                error = "현재 모임을 종료하고 새 모임을 시작한 뒤 참여해 주세요."
+                return false
+            }
+            let deviceID = UserDefaults.standard.string(forKey: "reunion.cloudDeviceID") ?? UUID().uuidString
+            UserDefaults.standard.set(deviceID, forKey: "reunion.cloudDeviceID")
+            let reply = try await SessionClient.shared.connect(
                 name: name,
-                code: code,
-                meeting: meeting
+                link: code,
+                meeting: meeting,
+                deviceID: deviceID
             )
             self.name = name
             save(name, key: "name")
@@ -638,12 +635,10 @@ final class ReunionStore {
             friendJoined = false
             peers = []
             save(sharingEnabled, key: "sharingEnabled")
-            credentials = .init(
-                server: server,
-                code: reply.session.code,
-                participantID: reply.participantID,
-                token: reply.token
-            )
+            credentials = reply.credentials
+            pendingInvitation = nil
+            UserDefaults.standard.removeObject(forKey: "reunion.pendingInvitation")
+            _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge])
             let localOrigin = meeting.origin
             let localMode = meeting.mode
             let buffer = meeting.bufferMinutes
@@ -664,7 +659,7 @@ final class ReunionStore {
             didPromptMovement = false
             NotificationService.shared.cancel()
             notificationsEnabled = false
-            save(credentials, key: "credentials")
+            save(credentials, key: "cloudCredentials")
             save(meeting, key: "meeting")
             save(phase, key: "phase")
             save(estimate, key: "estimate")
@@ -688,15 +683,13 @@ final class ReunionStore {
         }
         let sentSharing = sharingEnabled
         do {
-            let remote = try await SessionClient.update(
+            let remote = try await SessionClient.shared.update(
                 credentials,
                 phase: phase,
                 sharingEnabled: sentSharing,
                 coordinate: myCoordinate,
                 coordinateUpdatedAt: locationUpdated,
-                eta: phase == .moving ? eta : nil,
-                deviceToken: deviceToken,
-                activityToken: activityToken
+                eta: phase == .moving ? eta : nil
             )
             apply(remote)
             lastSync = .now
@@ -706,7 +699,7 @@ final class ReunionStore {
             }
         } catch {
             // An ended session rejects writes. Read its terminal state before reporting connectivity trouble.
-            if let state = try? await SessionClient.state(credentials), state.ended {
+            if let state = try? await SessionClient.shared.state(credentials), state.ended {
                 await finishLocally()
                 connectionError = nil
             } else {
@@ -715,7 +708,25 @@ final class ReunionStore {
         }
     }
 
+    func refreshCloud() async -> Bool {
+        guard let credentials, !isSyncing, phase != .complete else { return false }
+        isSyncing = true
+        defer { isSyncing = false }
+        do {
+            let remote = try await SessionClient.shared.state(credentials)
+            apply(remote)
+            lastSync = .now
+            connectionError = nil
+            await updateActivity()
+            return true
+        } catch {
+            connectionError = error.localizedDescription
+            return false
+        }
+    }
+
     func apply(_ remote: RemoteSession) {
+        cloudNotificationWarning = remote.notificationWarning
         if remote.ended {
             Task {
                 await finishLocally()
@@ -730,8 +741,12 @@ final class ReunionStore {
         if !departed.isEmpty {
             message = departed.map(\.name).joined(separator: ", ") + "님이 출발했어요"
             log("friend_departure_received", departed.map(\.id).joined(separator: ","))
+            for peer in departed {
+                Task { try? await NotificationService.shared.friendDeparture(peer: peer) }
+            }
         }
         peers = incoming
+        save(peers, key: "cloudPeers")
         friendJoined = !peers.isEmpty
     }
 
@@ -792,7 +807,8 @@ final class ReunionStore {
             await activity.end(nil, dismissalPolicy: .immediate)
         }
         credentials = nil
-        save(credentials, key: "credentials")
+        UserDefaults.standard.removeObject(forKey: "reunion.cloudPeers")
+        save(credentials, key: "cloudCredentials")
         meeting = Meeting()
         estimate = nil
         phase = .free

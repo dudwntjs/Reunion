@@ -10,12 +10,23 @@ struct ConnectionView: View {
     @State private var code = ""
     @State private var joining = false
     @State private var ending = false
+    @State private var inviting = false
 
     // MARK: - Body
 
     var body: some View {
         NavigationStack {
             connectionForm
+                .onAppear {
+                    name = store.name
+                    if let link = store.pendingInvitation {
+                        code = link
+                        joining = true
+                    }
+                }
+                .sheet(isPresented: $inviting) {
+                    if let credentials = store.credentials { CloudInviteView(credentials: credentials) }
+                }
                 .navigationTitle("친구와 연결")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
@@ -121,14 +132,17 @@ extension ConnectionView {
         Form {
             if let credentials = store.credentials {
                 Section("친구 초대") {
-                    LabeledContent("초대 코드", value: credentials.code)
-                        .monospacedDigit()
-                        .textSelection(.enabled)
-                    ShareLink(item: "다시 만나 · 초대 코드 \(credentials.code)\n앱에서 친구와 연결하기를 눌러 참여해 주세요.") {
-                        Label("초대 코드 공유", systemImage: "square.and.arrow.up")
+                    if credentials.isOwner {
+                        Button {
+                            inviting = true
+                        } label: {
+                            Label("iCloud로 친구 초대", systemImage: "person.badge.plus")
+                        }
+                    } else {
+                        Text("다른 친구를 초대하려면 모임을 만든 친구에게 요청해 주세요.")
                     }
                     LabeledContent("참여 인원", value: "\(store.peers.count + 1)명 / 최대 10명")
-                    Text("같은 초대 코드를 여러 친구에게 공유해 주세요.")
+                    Text("초대한 iCloud 계정만 참여할 수 있어요.")
                     ForEach(store.peers) { peer in
                         LabeledContent(peer.name, value: peer.status)
                     }
@@ -157,13 +171,15 @@ extension ConnectionView {
                     Picker("연결 방법", selection: $joining) {
                         Text("친구 초대")
                             .tag(false)
-                        Text("코드로 참여")
+                        Text("초대로 참여")
                             .tag(true)
                     }
                     .pickerStyle(.segmented)
                     if joining {
-                        TextField("6자리 초대 코드", text: $code)
-                            .keyboardType(.numberPad)
+                        TextField("iCloud 초대 링크", text: $code)
+                            .keyboardType(.URL)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
                     }
                 }
                 if !joining {
@@ -178,16 +194,15 @@ extension ConnectionView {
                     Button {
                         Task {
                             if await store.connect(
-                                server: GoogleConfiguration.relayURL,
                                 name: name,
                                 code: joining ? code : nil
                             ) {
-                                dismiss()
+                                if joining { dismiss() } else { inviting = true }
                             }
                         }
                     } label: {
                         HStack(alignment: .center, spacing: 8) {
-                            Text(joining ? "참여하기" : "초대 코드 만들기")
+                            Text(joining ? "참여하기" : "모임 만들고 초대하기")
                             if store.isLoading {
                                 Spacer()
                                 ProgressView()
@@ -196,15 +211,10 @@ extension ConnectionView {
                     }
                     .disabled(
                         store.isLoading || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                            || (joining ? code.count != 6 || !code.allSatisfy(\.isNumber) : !store.hasDestination)
-                            || GoogleConfiguration.relayURL.isEmpty
+                            || (joining ? CloudInvitation.url(code) == nil : !store.hasDestination)
                     )
                 } footer: {
-                    if GoogleConfiguration.relayURL.isEmpty {
-                        Text("친구 연결 서비스를 준비 중이에요. 연결이 준비되면 초대 코드를 사용할 수 있어요.")
-                    } else {
-                        Text("위치는 함께 보기에서 공유를 켰을 때만 전달됩니다.")
-                    }
+                    Text("iCloud에 로그인한 친구를 초대해 주세요. 위치는 함께 보기에서 공유를 켰을 때만 전달돼요.")
                 }
             }
             if let issue = store.connectionError {

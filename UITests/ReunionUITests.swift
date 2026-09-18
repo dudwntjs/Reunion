@@ -95,6 +95,12 @@ final class ReunionUITests: XCTestCase {
         XCTAssertTrue(app.textFields["내 이름"].exists)
         XCTAssertFalse(app.textFields["서버 HTTPS 주소"].exists)
         XCTAssertEqual(app.secureTextFields.count, 0)
+        app.buttons["초대로 참여"].tap()
+        let link = app.textFields["iCloud 초대 링크"]
+        XCTAssertTrue(link.exists)
+        link.tap()
+        link.typeText("123456")
+        XCTAssertFalse(app.buttons["참여하기"].isEnabled)
         capture("04-native-invite")
     }
 }

@@ -221,6 +221,17 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate, @un
         return true
     }
 
+    func friendDeparture(peer: Peer) async throws {
+        let center = UNUserNotificationCenter.current()
+        let settings = await center.notificationSettings()
+        guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else { return }
+        let content = UNMutableNotificationContent()
+        content.title = "\(peer.name)님이 출발했어요"
+        content.body = "앱에서 친구의 이동 상태를 확인해 주세요."
+        content.sound = .default
+        try await center.add(UNNotificationRequest(identifier: "friend-\(peer.id)", content: content, trigger: nil))
+    }
+
     func demoFriendDeparture(name: String) async throws {
         let center = UNUserNotificationCenter.current()
         let settings = await center.notificationSettings()

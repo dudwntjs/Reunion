@@ -104,7 +104,8 @@ struct RootView: View {
             Text(store.error ?? "")
         }
         .task {
-            store.deviceToken = AppDelegate.pushToken
+            AppDelegate.store = store
+            receiveInvitation()
             if store.credentials != nil {
                 await store.sync()
             }
@@ -127,8 +128,14 @@ struct RootView: View {
                 }
             }
         }
-        .onReceive(NotificationCenter.default.publisher(for: .init("ReunionPushToken"))) {
-            store.deviceToken = $0.object as? String
+        .onReceive(NotificationCenter.default.publisher(for: .init("ReunionCloudInvitation"))) { _ in
+            receiveInvitation()
+        }
+        .onOpenURL { url in
+            if CloudInvitation.url(url.absoluteString) != nil {
+                UserDefaults.standard.set(url.absoluteString, forKey: "reunion.pendingInvitation")
+                receiveInvitation()
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .init("ReunionNotificationTapped"))) { notification in
             guard store.phase == .free, let id = notification.object as? String, let prompt = PromptKind(rawValue: id)
@@ -146,6 +153,12 @@ struct RootView: View {
 // MARK: - Subviews
 
 extension RootView {
+
+    private func receiveInvitation() {
+        guard let link = UserDefaults.standard.string(forKey: "reunion.pendingInvitation") else { return }
+        store.pendingInvitation = link
+        connecting = true
+    }
 
     private var meetingSection: some View {
         Section("다시 만날 약속") {
@@ -312,7 +325,7 @@ extension RootView {
             Button {
                 connecting = true
             } label: {
-                Label(store.credentials == nil ? "친구와 연결하기" : "초대 코드 보기", systemImage: "person.badge.plus")
+                Label(store.credentials == nil ? "친구와 연결하기" : "모임과 초대 보기", systemImage: "person.badge.plus")
             }
             .accessibilityIdentifier("connect")
         }
@@ -405,6 +418,9 @@ extension RootView {
                         Label("공유 설정을 전달하는 중", systemImage: "arrow.triangle.2.circlepath")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                    }
+                    if let warning = store.cloudNotificationWarning {
+                        Text(warning).font(.caption).foregroundStyle(.secondary)
                     }
                     if let issue = store.connectionError {
                         Label(issue, systemImage: "wifi.slash")

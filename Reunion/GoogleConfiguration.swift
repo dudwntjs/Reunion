@@ -11,5 +11,4 @@ enum GoogleConfiguration {
     }
     static var placesKey: String { configured("GOOGLE_PLACES_API_KEY") }
     static var routesKey: String { configured("GOOGLE_ROUTES_API_KEY") }
-    static var relayURL: String { configured("REUNION_SERVICE_URL") }
 }

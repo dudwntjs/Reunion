@@ -16,6 +16,8 @@
 	<string>0.1.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<key>CKSharingSupported</key>
+	<true/>
 	<key>GOOGLE_MAPS_API_KEY</key>
 	<string>$(GOOGLE_MAPS_API_KEY)</string>
 	<key>GOOGLE_PLACES_API_KEY</key>
@@ -24,22 +26,14 @@
 	<string>$(GOOGLE_ROUTES_API_KEY)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<key>NSAllowsLocalNetworking</key>
-		<true/>
-	</dict>
-	<key>NSLocalNetworkUsageDescription</key>
-	<string>현장 테스트 중 같은 네트워크의 재합류 서버에 연결합니다.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>주변 만남 장소를 찾고, 직접 위치 공유를 켰을 때 친구에게 현재 위치를 알려요.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
-	<key>REUNION_SERVICE_URL</key>
-	<string>$(REUNION_SERVICE_URL)</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>location</string>
+		<string>remote-notification</string>
 	</array>
 	<key>UILaunchScreen</key>
 	<dict/>
