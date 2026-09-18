@@ -145,3 +145,9 @@ iOSInjectionProject/
 
 
 # End of https://www.toptal.com/developers/gitignore/api/swift,xcode,macos,cocoapods
+
+# Shared configuration; private keys remain local
+!Config/Base.xcconfig
+Config/Local.xcconfig
+node_modules/
+*.p8
