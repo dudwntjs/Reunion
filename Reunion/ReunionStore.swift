@@ -8,6 +8,7 @@ final class ReunionStore {
 
     var estimate: RouteEstimate?
     var phase = JourneyPhase.free
+    var peers: [Peer] = []
     var friendPhase = JourneyPhase.free
     var friendCoordinate: Coordinate?
     var friendUpdated: Date?
@@ -62,27 +63,8 @@ final class ReunionStore {
         }
         return "실시간 위치 공유 중"
     }
-    var situation: String {
-        if phase == .complete {
-            return "다시 만났어요"
-        }
-        if !friendJoined {
-            return "친구 연결을 기다리고 있어요"
-        }
-        if phase == .arrived && friendPhase == .arrived {
-            return "두 사람 모두 약속 장소에 도착했어요"
-        }
-        if phase == .arrived || friendPhase == .arrived {
-            return "한 사람이 도착해 기다리고 있어요"
-        }
-        if phase == .moving && friendPhase == .moving {
-            return "서로 만나러 가고 있어요"
-        }
-        if phase == .moving || friendPhase == .moving {
-            return "한 사람이 약속 장소로 출발했어요"
-        }
-        return "각자 자유시간을 보내고 있어요"
-    }
+    var situation: String { GroupStatus.summary(mine: phase, peers: peers) }
+    var groupFriendStatus: String { GroupStatus.friendsSummary(peers) }
     var currentLocation: CLLocation?
     var isLocating = false
     var locationError: String?
@@ -181,6 +163,16 @@ final class ReunionStore {
             contactCount = Self.restore(Int.self, key: "contacts") ?? 0
             sessionID = Self.restore(UUID.self, key: "sessionID") ?? UUID()
         }
+        #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("--uitesting"),
+                let fixture = ProcessInfo.processInfo.environment["REUNION_TEST_PEERS"],
+                let data = fixture.data(using: .utf8),
+                let participants = try? JSONDecoder().decode([Peer].self, from: data)
+            {
+                peers = participants
+                friendJoined = !peers.isEmpty
+            }
+        #endif
         locationService.onLocation = { [weak self] location in
             self?.receivedLocation(location)
         }
@@ -432,13 +424,13 @@ final class ReunionStore {
 
         let state = ReunionAttributes.ContentState(
             status: "만나러 가는 중",
-            friendStatus: "\(meeting.friendName) · \(friendStatus)",
+            friendStatus: groupFriendStatus,
             arrival: eta,
             progress: 0
         )
         let attributes = ReunionAttributes(
             place: meeting.place,
-            friendName: meeting.friendName,
+            friendName: "친구들",
             target: meeting.target,
             isDemo: isDemo
         )
@@ -478,7 +470,7 @@ final class ReunionStore {
             ActivityContent(
                 state: .init(
                     status: phase == .arrived ? "도착했어요" : "만나러 가는 중",
-                    friendStatus: "\(meeting.friendName) · \(friendStatus)",
+                    friendStatus: groupFriendStatus,
                     arrival: eta,
                     progress: isDemo ? demoProgress : phase == .arrived ? 1 : 0.5
                 ),
@@ -536,6 +528,15 @@ final class ReunionStore {
         guard phase != .complete else { return }
 
         phase = .complete
+        peers = peers.map { peer in
+            var ended = peer
+            ended.phase = "complete"
+            ended.sharingEnabled = false
+            ended.coordinate = nil
+            ended.coordinateUpdatedAt = nil
+            ended.eta = nil
+            return ended
+        }
         friendPhase = .complete
         friendCoordinate = nil
         currentLocation = nil
@@ -635,6 +636,7 @@ final class ReunionStore {
             sharingEnabled = false
             friendSharing = false
             friendJoined = false
+            peers = []
             save(sharingEnabled, key: "sharingEnabled")
             credentials = .init(
                 server: server,
@@ -721,32 +723,16 @@ final class ReunionStore {
             return
         }
 
-        guard
-            let peer = remote.participants.first(where: {
-                $0.id != credentials?.participantID
-            })
-        else {
-            meeting.friendName = "친구"
-            friendJoined = false
-            friendSharing = false
-            friendCoordinate = nil
-            return
+        let incoming = remote.participants.filter { $0.id != credentials?.participantID }
+        let departed = incoming.filter { peer in
+            peers.contains { $0.id == peer.id && $0.phase == "free" } && peer.phase == "moving"
         }
-
-        if friendID == peer.id && friendPhase == .free && peer.phase == "moving" {
-            message = "\(peer.name)님이 출발했어요"
-            log("friend_departure_received")
+        if !departed.isEmpty {
+            message = departed.map(\.name).joined(separator: ", ") + "님이 출발했어요"
+            log("friend_departure_received", departed.map(\.id).joined(separator: ","))
         }
-        friendJoined = true
-        friendSharing = peer.sharingEnabled ?? (peer.coordinate != nil)
-        friendLastSeen = Date(timeIntervalSince1970: peer.updatedAt)
-        friendID = peer.id
-        meeting.friendName = peer.name
-        friendPhase = JourneyPhase(rawValue: peer.phase) ?? .free
-        friendCoordinate = friendSharing ? peer.coordinate : nil
-        friendUpdated = peer.coordinateUpdatedAt.map {
-            Date(timeIntervalSince1970: $0)
-        }
+        peers = incoming
+        friendJoined = !peers.isEmpty
     }
 
     func saveReport(
@@ -814,6 +800,7 @@ final class ReunionStore {
         sharingEnabled = false
         friendSharing = false
         friendJoined = false
+        peers = []
         sharingNeedsSync = false
         save(sharingEnabled, key: "sharingEnabled")
         friendCoordinate = nil

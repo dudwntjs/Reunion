@@ -25,13 +25,10 @@ struct ReunionMap: View {
                 GoogleMapCanvas(
                     destination: destination,
                     mine: current,
-                    friend: store.friendCoordinate,
-                    friendName: store.meeting.friendName,
+                    peers: store.peers,
                     polyline: store.estimate?.encodedPolyline,
                     center: center,
                     mineStatus: store.myStatus,
-                    friendStatus: store.friendStatus,
-                    friendIsStale: store.friendIsStale,
                     focusRequest: store.mapFocusRequest
                 )
             } else {
@@ -69,13 +66,10 @@ struct GoogleMapCanvas: UIViewRepresentable {
 
     var destination: Coordinate?
     var mine: Coordinate?
-    var friend: Coordinate?
-    var friendName: String
+    var peers: [Peer]
     var polyline: String?
     var center: Coordinate
     var mineStatus = ""
-    var friendStatus = ""
-    var friendIsStale = false
     var focusRequest = 0
     func makeUIView(context: Context) -> GMSMapView {
         let options = GMSMapViewOptions()
@@ -112,8 +106,10 @@ struct GoogleMapCanvas: UIViewRepresentable {
         if let mine {
             marker(mine, "나", mineStatus, .systemBlue)
         }
-        if let friend {
-            marker(friend, friendName, friendIsStale ? "마지막 위치" : friendStatus, .systemGreen, friendIsStale)
+        for peer in peers {
+            if let coordinate = peer.visibleCoordinate {
+                marker(coordinate, peer.name, peer.isStale ? "마지막 위치" : peer.status, .systemGreen, peer.isStale)
+            }
         }
         if let polyline, let path = GMSPath(fromEncodedPath: polyline) {
             let line = GMSPolyline(path: path)
@@ -122,13 +118,11 @@ struct GoogleMapCanvas: UIViewRepresentable {
             line.map = map
         }
         let changed =
-            context.coordinator.destination != destination || context.coordinator.hasFriend != (friend != nil)
+            context.coordinator.destination != destination
+            || context.coordinator.visiblePeerIDs != peers.filter { $0.visibleCoordinate != nil }.map(\.id)
             || context.coordinator.focusRequest != focusRequest
         if changed || !context.coordinator.centered {
-            let positions = [destination, mine, friend]
-                .compactMap {
-                    $0
-                }
+            let positions = [destination, mine].compactMap { $0 } + peers.compactMap(\.visibleCoordinate)
             if positions.count > 1 {
                 var bounds = GMSCoordinateBounds()
                 for point in positions {
@@ -141,12 +135,14 @@ struct GoogleMapCanvas: UIViewRepresentable {
                         bounds = bounds.includingCoordinate(path.coordinate(at: index))
                     }
                 }
-                map.animate(with: GMSCameraUpdate.fit(bounds, with: UIEdgeInsets(top: 105, left: 45, bottom: 45, right: 45)))
+                map.animate(
+                    with: GMSCameraUpdate.fit(bounds, with: UIEdgeInsets(top: 105, left: 45, bottom: 45, right: 45))
+                )
             } else {
                 map.animate(toLocation: CLLocationCoordinate2D(latitude: center.latitude, longitude: center.longitude))
             }
             context.coordinator.destination = destination
-            context.coordinator.hasFriend = friend != nil
+            context.coordinator.visiblePeerIDs = peers.filter { $0.visibleCoordinate != nil }.map(\.id)
             context.coordinator.focusRequest = focusRequest
             context.coordinator.centered = true
         }
@@ -191,7 +187,7 @@ struct GoogleMapCanvas: UIViewRepresentable {
 
     final class Coordinator {
         var destination: Coordinate?
-        var hasFriend = false
+        var visiblePeerIDs: [String] = []
         var centered = false
         var focusRequest = 0
     }

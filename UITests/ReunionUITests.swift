@@ -9,6 +9,45 @@ final class ReunionUITests: XCTestCase {
         app.launch()
     }
 
+    func testMultipleFriendsHaveSeparateStatusRows() throws {
+        app.terminate()
+        let peers: [[String: Any]] = [
+            [
+                "id": "one", "name": "민지", "phase": "moving", "sharingEnabled": false,
+                "updatedAt": Date().timeIntervalSince1970,
+            ],
+            [
+                "id": "two", "name": "지우", "phase": "arrived", "sharingEnabled": false,
+                "updatedAt": Date().timeIntervalSince1970,
+            ],
+            [
+                "id": "three", "name": "수현", "phase": "free", "sharingEnabled": false,
+                "updatedAt": Date().timeIntervalSince1970,
+            ],
+        ]
+        app.launchEnvironment["REUNION_TEST_PEERS"] = String(
+            data: try JSONSerialization.data(withJSONObject: peers),
+            encoding: .utf8
+        )
+        app.launch()
+        app.tabBars.buttons["함께 보기"].tap()
+        reveal(app.staticTexts["4명 중 1명이 도착했어요"])
+        XCTAssertTrue(app.staticTexts["4명 중 1명이 도착했어요"].waitForExistence(timeout: 5))
+        for name in ["민지", "지우", "수현"] {
+            reveal(app.staticTexts[name])
+            XCTAssertTrue(app.staticTexts[name].exists)
+        }
+        capture("multiple-friends")
+    }
+
+    func reveal(_ element: XCUIElement) {
+        for _ in 0..<5 {
+            if element.exists { return }
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.99, dy: 0.8))
+                .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.99, dy: 0.3)))
+        }
+    }
+
     func capture(_ name: String) {
         let shot = XCTAttachment(screenshot: app.screenshot())
         shot.name = name
@@ -28,7 +67,7 @@ final class ReunionUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["친구 연결을 기다리고 있어요"].exists)
         XCTAssertEqual(app.buttons.matching(identifier: "connect").count, 1)
         XCTAssertFalse(app.buttons["showMeetingRoute"].exists)
-        app.swipeUp()
+        reveal(app.switches["sharingToggle"])
         XCTAssertTrue(app.switches["sharingToggle"].waitForExistence(timeout: 3))
         XCTAssertFalse(app.switches["sharingToggle"].isEnabled)
         capture("02-native-together")

@@ -8,6 +8,7 @@ import { pathToFileURL } from 'node:url';
 const SWIFT_EPOCH = 978307200;
 const sessions = new Map();
 const attempts = new Map();
+const maxParticipants = 10;
 const ttl = 12 * 60 * 60 * 1000;
 let pushJWT;
 function jwt() {
@@ -46,12 +47,19 @@ function participant(name) { return { id: randomBytes(12).toString('hex'), token
 function publicSession(s) { return { code: s.code, meeting: s.meeting, ended: s.ended, participants: s.participants.map(({ id, name, phase, sharingEnabled, coordinate, coordinateUpdatedAt, updatedAt, eta }) => ({ id, name, phase, sharingEnabled, coordinate, coordinateUpdatedAt, updatedAt, eta })) }; }
 async function readBody(req) { let body = ''; for await (const chunk of req) { body += chunk; if (body.length > 16384) fail(413, '요청이 너무 큽니다.'); } try { return JSON.parse(body || '{}'); } catch { fail(400, '잘못된 요청입니다.'); } }
 function reply(res, status, data) { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(data)); }
-export function createServer() {
+export function groupSummary(session, participantID) {
+  const peers = session.participants.filter(p => p.id !== participantID);
+  return `친구 ${peers.length}명 · 이동 ${peers.filter(p => p.phase === 'moving').length}명 · 도착 ${peers.filter(p => p.phase === 'arrived').length}명`;
+}
+export function createServer({ sendPush = push } = {}) {
   return http.createServer(async (req, res) => {
     try {
       const now = Date.now();
       for (const [code,s] of sessions) if (now - s.createdAt > ttl) sessions.delete(code);
-      const ip = req.socket.remoteAddress;
+      const bearerToken = req.headers.authorization?.replace(/^Bearer /, '');
+      const sessionCode = new URL(req.url, 'http://localhost').pathname.match(/^\/sessions\/(\d{6})/)?.[1];
+      const authenticated = sessions.get(sessionCode)?.participants.find(p => p.token === bearerToken);
+      const ip = authenticated ? `participant:${authenticated.id}` : `ip:${req.socket.remoteAddress}`;
       for (const [key,value] of attempts) if (now > value.reset) attempts.delete(key);
       const limit = attempts.get(ip) || { count: 0, reset: now + 60000 }; attempts.set(ip, limit);
       if (++limit.count > 180) fail(429, '요청이 많아요. 잠시 후 다시 시도해 주세요.');
@@ -68,7 +76,7 @@ export function createServer() {
       if (req.method === 'POST' && path === '/sessions/join') {
         const body = await readBody(req); const s = sessions.get(body.code);
         if (!s || s.ended) fail(404, '모임 코드가 없거나 종료됐어요.');
-        if (s.participants.length >= 2) fail(409, '이미 두 명이 참여한 모임이에요.');
+        if (s.participants.length >= maxParticipants) fail(409, '한 모임에는 최대 10명까지 참여할 수 있어요.');
         const p = participant(body.name); s.participants.push(p);
         return reply(res, 200, { session: publicSession(s), participantID: p.id, token: p.token });
       }
@@ -82,7 +90,7 @@ export function createServer() {
       if (match[2] === 'end') {
         s.ended = true;
         for (const peer of s.participants) {
-          if (peer.activityToken) push(peer.activityToken, { aps: { timestamp: Math.floor(now/1000), event: 'end', 'content-state': { status: '재합류 완료', friendStatus: '위치 공유 종료', arrival: now/1000-SWIFT_EPOCH, progress: 1 }, 'dismissal-date': Math.floor(now/1000) } }, true).catch(error=>console.error('End push failed:',error.message));
+          if (peer.activityToken) sendPush(peer.activityToken, { aps: { timestamp: Math.floor(now/1000), event: 'end', 'content-state': { status: '재합류 완료', friendStatus: '위치 공유 종료', arrival: now/1000-SWIFT_EPOCH, progress: 1 }, 'dismissal-date': Math.floor(now/1000) } }, true).catch(error=>console.error('End push failed:',error.message));
           peer.coordinate = null; peer.coordinateUpdatedAt = null; peer.sharingEnabled = false; peer.phase = 'complete'; peer.eta = null; peer.deviceToken = null; peer.activityToken = null;
         }
         return reply(res,200,publicSession(s));
@@ -105,8 +113,8 @@ export function createServer() {
       if (body.deviceToken) p.deviceToken = body.deviceToken;
       if (body.activityToken) p.activityToken = body.activityToken;
       for (const peer of s.participants.filter(peer => peer.id !== p.id)) {
-        if (departed) push(peer.deviceToken, { aps: { alert: { title: `${p.name}님이 출발했어요`, body: `${s.meeting.place}에서 다시 만나요. 앱에서 이동 상태를 확인해 주세요.` }, sound: 'default' } }).catch(error => console.error('Push failed:',error.message));
-        if (peer.activityToken && (phaseChanged || now - (peer.lastLivePush || 0) >= 20000)) { peer.lastLivePush = now; push(peer.activityToken, { aps: { timestamp: Math.floor(now/1000), event: 'update', 'content-state': { status: peer.phase === 'arrived' ? '도착했어요' : '이동 중', friendStatus: `${p.name} · ${p.phase === 'moving' ? '이동 중' : p.phase === 'arrived' ? '도착' : '자유시간'}`, arrival: (peer.eta || now/1000 + 600) - SWIFT_EPOCH, progress: 0.5 }, 'stale-date': Math.floor(now/1000 + 60) } }, true).catch(error => console.error('Live Activity push failed:',error.message)); }
+        if (departed) sendPush(peer.deviceToken, { aps: { alert: { title: `${p.name}님이 출발했어요`, body: `${s.meeting.place}에서 다시 만나요. 앱에서 이동 상태를 확인해 주세요.` }, sound: 'default' } }).catch(error => console.error('Push failed:',error.message));
+        if (peer.activityToken && (phaseChanged || now - (peer.lastLivePush || 0) >= 20000)) { peer.lastLivePush = now; sendPush(peer.activityToken, { aps: { timestamp: Math.floor(now/1000), event: 'update', 'content-state': { status: peer.phase === 'arrived' ? '도착했어요' : '이동 중', friendStatus: groupSummary(s, peer.id), arrival: (peer.eta || now/1000 + 600) - SWIFT_EPOCH, progress: 0.5 }, 'stale-date': Math.floor(now/1000 + 60) } }, true).catch(error => console.error('Live Activity push failed:',error.message)); }
       }
       return reply(res,200,publicSession(s));
     } catch(error) { reply(res,error.status || 500,{ error: error.status ? error.message : '서버 오류가 발생했어요.' }); }

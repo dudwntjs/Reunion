@@ -1,15 +1,5 @@
 import Foundation
 
-struct Peer: Codable, Identifiable, Equatable {
-    var id: String
-    var name: String
-    var phase: String
-    var sharingEnabled: Bool?
-    var coordinate: Coordinate?
-    var updatedAt: Double
-    var coordinateUpdatedAt: Double?
-    var eta: Double?
-}
 struct RemoteSession: Codable {
     var code: String
     var meeting: Meeting

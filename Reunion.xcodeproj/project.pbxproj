@@ -131,9 +131,78 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-000000000000000000000032 = {isa = PBXNativeTarget; buildConfigurationList = 00000000000000000000003C; buildPhases = (000000000000000000000014,00000000000000000000001A,000000000000000000000017,00000000000000000000001D); buildRules = (); dependencies = (000000000000000000000029); fileSystemSynchronizedGroups = (000000000000000000000002,000000000000000000000003); name = Reunion; packageProductDependencies = (000000000000000000000020); productName = Reunion; productReference = 00000000000000000000000A; productType = "com.apple.product-type.application";};
-000000000000000000000033 = {isa = PBXNativeTarget; buildConfigurationList = 00000000000000000000003D; buildPhases = (000000000000000000000015,00000000000000000000001B,000000000000000000000018); buildRules = (); dependencies = (); fileSystemSynchronizedGroups = (000000000000000000000004,000000000000000000000003); name = ReunionActivity; packageProductDependencies = (); productName = ReunionActivity; productReference = 00000000000000000000000B; productType = "com.apple.product-type.app-extension";};
-000000000000000000000034 = {isa = PBXNativeTarget; buildConfigurationList = 00000000000000000000003E; buildPhases = (000000000000000000000016,00000000000000000000001C,000000000000000000000019); buildRules = (); dependencies = (00000000000000000000002B); fileSystemSynchronizedGroups = (000000000000000000000005); name = ReunionUITests; packageProductDependencies = (); productName = ReunionUITests; productReference = 00000000000000000000000C; productType = "com.apple.product-type.bundle.ui-testing";};
+		000000000000000000000032 /* Reunion */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 00000000000000000000003C /* Build configuration list for PBXNativeTarget "Reunion" */;
+			buildPhases = (
+				000000000000000000000014 /* Sources */,
+				00000000000000000000001A /* Frameworks */,
+				000000000000000000000017 /* Resources */,
+				00000000000000000000001D /* Embed App Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				000000000000000000000029 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				000000000000000000000002 /* Reunion */,
+				000000000000000000000003 /* Shared */,
+			);
+			name = Reunion;
+			packageProductDependencies = (
+				000000000000000000000020 /* GoogleMaps */,
+			);
+			productName = Reunion;
+			productReference = 00000000000000000000000A /* Reunion.app */;
+			productType = "com.apple.product-type.application";
+		};
+		000000000000000000000033 /* ReunionActivity */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 00000000000000000000003D /* Build configuration list for PBXNativeTarget "ReunionActivity" */;
+			buildPhases = (
+				000000000000000000000015 /* Sources */,
+				00000000000000000000001B /* Frameworks */,
+				000000000000000000000018 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				000000000000000000000003 /* Shared */,
+				000000000000000000000004 /* ReunionActivity */,
+			);
+			name = ReunionActivity;
+			packageProductDependencies = (
+			);
+			productName = ReunionActivity;
+			productReference = 00000000000000000000000B /* ReunionActivity.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		000000000000000000000034 /* ReunionUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 00000000000000000000003E /* Build configuration list for PBXNativeTarget "ReunionUITests" */;
+			buildPhases = (
+				000000000000000000000016 /* Sources */,
+				00000000000000000000001C /* Frameworks */,
+				000000000000000000000019 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				00000000000000000000002B /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				000000000000000000000005 /* UITests */,
+			);
+			name = ReunionUITests;
+			packageProductDependencies = (
+			);
+			productName = ReunionUITests;
+			productReference = 00000000000000000000000C /* ReunionUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -170,18 +239,43 @@
 				Base,
 			);
 			mainGroup = 000000000000000000000001;
-packageReferences = (000000000000000000000021);
-preferredProjectObjectVersion = 77;
-productRefGroup = 000000000000000000000006;
-projectDirPath = "";
-projectRoot = "";
-targets = (000000000000000000000032,000000000000000000000033,000000000000000000000034);
-};
+			packageReferences = (
+				000000000000000000000021 /* XCRemoteSwiftPackageReference "ios-maps-sdk" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 000000000000000000000006 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				000000000000000000000032 /* Reunion */,
+				000000000000000000000033 /* ReunionActivity */,
+				000000000000000000000034 /* ReunionUITests */,
+			);
+		};
 /* End PBXProject section */
+
 /* Begin PBXResourcesBuildPhase section */
-000000000000000000000017 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0;};
-000000000000000000000018 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0;};
-000000000000000000000019 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0;};
+		000000000000000000000017 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		000000000000000000000018 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		000000000000000000000019 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */

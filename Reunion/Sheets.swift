@@ -41,7 +41,7 @@ struct ConnectionView: View {
                         Text("종료")
                     }
                 } message: {
-                    Text("두 사람의 위치 공유가 중지됩니다.")
+                    Text("모든 참가자의 위치 공유가 중지됩니다.")
                 }
                 .alert(
                     "연결을 확인해 주세요",
@@ -127,7 +127,11 @@ extension ConnectionView {
                     ShareLink(item: "다시 만나 · 초대 코드 \(credentials.code)\n앱에서 친구와 연결하기를 눌러 참여해 주세요.") {
                         Label("초대 코드 공유", systemImage: "square.and.arrow.up")
                     }
-                    LabeledContent("친구", value: store.friendJoined ? store.meeting.friendName : "참여 기다리는 중")
+                    LabeledContent("참여 인원", value: "\(store.peers.count + 1)명 / 최대 10명")
+                    Text("같은 초대 코드를 여러 친구에게 공유해 주세요.")
+                    ForEach(store.peers) { peer in
+                        LabeledContent(peer.name, value: peer.status)
+                    }
                 }
                 Section {
                     Button(role: .destructive) {

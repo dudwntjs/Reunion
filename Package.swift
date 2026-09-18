@@ -11,7 +11,7 @@ let package = Package(
             name: "ReunionCore",
             path: "Shared",
             exclude: ["ReunionAttributes.swift"],
-            sources: ["ReunionCore.swift", "PlacesClient.swift"]
+            sources: ["ReunionCore.swift", "PlacesClient.swift", "Participants.swift"]
         ), .testTarget(name: "ReunionCoreTests", dependencies: ["ReunionCore"], path: "Tests/ReunionCoreTests"),
     ]
 )

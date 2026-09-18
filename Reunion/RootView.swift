@@ -80,7 +80,7 @@ struct RootView: View {
                 Text("완료")
             }
         } message: {
-            Text("두 사람의 위치 공유를 종료합니다.")
+            Text("모든 참가자의 위치 공유를 종료합니다.")
         }
         .alert(
             "안내",
@@ -305,8 +305,8 @@ extension RootView {
         Section("친구") {
             if store.credentials != nil {
                 LabeledContent(
-                    store.meeting.friendName,
-                    value: store.friendJoined ? store.friendStatus : "참여 기다리는 중"
+                    "참여 인원",
+                    value: "\(store.peers.count + 1)명 / 최대 10명"
                 )
             }
             Button {
@@ -327,12 +327,15 @@ extension RootView {
                 detail: store.mySharingDescription,
                 isStale: false
             )
-            ParticipantStatus(
-                name: store.meeting.friendName,
-                status: store.friendJoined ? store.friendStatus : "연결 대기",
-                detail: store.friendSharingDescription,
-                isStale: store.friendSharing && store.friendIsStale
-            )
+            ForEach(store.peers) { peer in
+                ParticipantStatus(
+                    name: peer.name,
+                    status: peer.status,
+                    detail: peer.sharingDescription,
+                    isStale: peer.sharesLocation && peer.isStale
+                )
+            }
+
         }
     }
 
