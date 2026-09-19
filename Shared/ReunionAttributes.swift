@@ -6,6 +6,8 @@ struct ReunionAttributes: ActivityAttributes {
         var status: String
         var friendStatus: String
         var arrival: Date
+        var departure: Date? = nil
+        var phase: String? = nil
         var progress: Double
     }
     var place: String

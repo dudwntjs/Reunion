@@ -225,8 +225,15 @@ struct RootView: View {
 
     private var statusSection: some View {
         card {
-            Text("내 상태").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
-            Text(store.myStatus).font(.title.bold())
+            Text("나의 현재 상태").font(.headline)
+            Text(
+                store.phase == .free
+                    ? "나는 아직 출발 전이에요"
+                    : store.phase == .moving ? "나는 이동 중이에요" : store.phase == .arrived ? "나는 도착했어요" : "재합류를 마쳤어요"
+            )
+            .font(.title.bold()).multilineTextAlignment(.center)
+            Text("출발하거나 도착하면 아래 버튼으로 알려주세요")
+                .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: 8) { statusButtons }
                 VStack(spacing: 8) { statusButtons }
@@ -238,7 +245,6 @@ struct RootView: View {
         }
     }
     @ViewBuilder private var statusButtons: some View {
-        phaseButton(.free, title: "자유시간 중", icon: "cup.and.saucer.fill")
         phaseButton(.moving, title: "출발했어요", icon: "figure.walk")
         phaseButton(.arrived, title: "도착했어요", icon: "checkmark.circle.fill")
     }

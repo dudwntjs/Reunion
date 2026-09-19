@@ -26,7 +26,8 @@ final class ReunionUITests: XCTestCase {
         XCTAssertFalse(app.otherElements["togetherMap"].exists)
         XCTAssertFalse(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "여유시간")).firstMatch.exists)
         XCTAssertFalse(app.pickers.firstMatch.exists)
-        for phase in ["moving", "arrived", "free"] {
+        XCTAssertFalse(app.buttons["phase-free"].exists)
+        for phase in ["moving", "arrived"] {
             let button = app.buttons["phase-\(phase)"]
             button.tap()
             XCTAssertEqual(button.value as? String, "선택됨")

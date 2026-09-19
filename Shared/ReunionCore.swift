@@ -115,3 +115,19 @@ struct StudyReport: Codable, Identifiable {
     var routeSource: String
     var events: [StudyEvent]
 }
+
+enum DepartureGuidance {
+    static func message(phase: JourneyPhase, departure: Date?, now: Date = .now) -> String {
+        switch phase {
+        case .moving: return "약속 장소로 이동 중이에요"
+        case .arrived: return "약속 장소에 도착했어요"
+        case .complete: return "재합류를 마쳤어요"
+        case .free:
+            guard let departure else { return "출발 시간을 확인해 주세요" }
+            let remaining = departure.timeIntervalSince(now)
+            if remaining <= 0 { return "지금 출발하세요" }
+            if remaining <= 300 { return "이제 슬슬 출발하세요" }
+            return "아직 출발 안 해도 돼요"
+        }
+    }
+}

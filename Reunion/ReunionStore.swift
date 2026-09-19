@@ -265,6 +265,7 @@ final class ReunionStore {
             guard revision == routeRevision else { return }
 
             estimate = result
+            if activity == nil { startActivity(duration: result.seconds) } else { await updateActivity() }
             mapFocusRequest += 1
             save(estimate, key: "estimate")
             log("route_success", "\(result.seconds)s; \(result.distanceMeters)m; 카카오 도보 경로")
@@ -401,7 +402,7 @@ final class ReunionStore {
         notificationsEnabled = false
         if newPhase == .moving {
             departedAt = .now
-            if let estimate { startActivity(duration: estimate.seconds) }
+            if activity == nil, let estimate { startActivity(duration: estimate.seconds) }
         } else if newPhase == .free {
             departedAt = nil
             if let activity { await activity.end(nil, dismissalPolicy: .immediate) }
@@ -419,6 +420,13 @@ final class ReunionStore {
         await updateActivity()
     }
 
+    private var activityStaleDate: Date? {
+        if phase == .arrived { return nil }
+        guard phase == .free, let departure else { return .now.addingTimeInterval(60) }
+        let soon = departure.addingTimeInterval(-300)
+        return soon > .now ? soon : departure > .now ? departure : nil
+    }
+
     func startActivity(duration: TimeInterval) {
         guard ActivityAuthorizationInfo().areActivitiesEnabled else {
             log("live_activity_unavailable")
@@ -426,9 +434,11 @@ final class ReunionStore {
         }
 
         let state = ReunionAttributes.ContentState(
-            status: "만나러 가는 중",
+            status: DepartureGuidance.message(phase: phase, departure: departure),
             friendStatus: groupFriendStatus,
             arrival: eta,
+            departure: departure,
+            phase: phase.rawValue,
             progress: 0
         )
         let attributes = ReunionAttributes(
@@ -444,7 +454,7 @@ final class ReunionStore {
             do {
                 let created = try Activity.request(
                     attributes: attributes,
-                    content: ActivityContent(state: state, staleDate: .now.addingTimeInterval(60)),
+                    content: ActivityContent(state: state, staleDate: activityStaleDate),
                     pushType: nil
                 )
                 activity = created
@@ -461,12 +471,14 @@ final class ReunionStore {
         await activity.update(
             ActivityContent(
                 state: .init(
-                    status: phase == .arrived ? "도착했어요" : "만나러 가는 중",
+                    status: DepartureGuidance.message(phase: phase, departure: departure),
                     friendStatus: groupFriendStatus,
                     arrival: eta,
+                    departure: departure,
+                    phase: phase.rawValue,
                     progress: isDemo ? demoProgress : phase == .arrived ? 1 : 0.5
                 ),
-                staleDate: .now.addingTimeInterval(60)
+                staleDate: activityStaleDate
             )
         )
     }
@@ -579,7 +591,9 @@ final class ReunionStore {
                 await sync()
             }
         }
-        if pollCount % 10 == 0 {
+        if activity?.content.state.status != DepartureGuidance.message(phase: phase, departure: departure)
+            || pollCount % 10 == 0
+        {
             await updateActivity()
         }
     }
