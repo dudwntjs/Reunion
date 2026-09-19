@@ -5,100 +5,9 @@ import Security
 import UserNotifications
 
 struct RoutesClient {
-    struct Response: Decodable {
-        struct Route: Decodable {
-            var duration: String
-            var distanceMeters: Int?
-            var polyline: Polyline?
-            var legs: [Leg]?
-            struct Leg: Decodable {
-                var steps: [Step]?
-            }
-            struct Step: Decodable {
-                var navigationInstruction: Instruction?
-            }
-            struct Instruction: Decodable {
-                var instructions: String?
-            }
-            struct Polyline: Decodable { var encodedPolyline: String }
-        }
-        var routes: [Route]?
-    }
-    enum Failure: LocalizedError {
-        case invalidCoordinate, missingKey, http(Int), noRoute, malformed
-        var errorDescription: String? {
-            switch self {
-            case .invalidCoordinate: "위도와 경도 범위를 확인해 주세요."
-            case .missingKey: "Google Routes API 키를 입력해 주세요."
-            case .http(let code): "Google Routes 요청 실패 (HTTP \(code)). API 활성화, 결제, 키 제한 및 지원 지역을 확인해 주세요."
-            case .noRoute: "이 구간의 경로를 제공하지 않아요. 국내 도보·자동차 경로는 Google 지원이 제한되어 있어요. 다른 이동수단을 선택해 주세요."
-            case .malformed: "이동시간 응답을 읽을 수 없어요. 다시 시도해 주세요."
-            }
-        }
-    }
-
     func estimate(meeting: Meeting, key: String) async throws -> RouteEstimate {
-        guard meeting.origin.isValid, meeting.coordinate.isValid else {
-            throw Failure.invalidCoordinate
-        }
-
-        guard !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            throw Failure.missingKey
-        }
-
-        guard let endpoint = URL(string: "https://routes.googleapis.com/directions/v2:computeRoutes") else {
-            throw Failure.malformed
-        }
-
-        var request = URLRequest(url: endpoint)
-        request.httpMethod = "POST"
-        request.timeoutInterval = 20
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(key, forHTTPHeaderField: "X-Goog-Api-Key")
-        request.setValue(Bundle.main.bundleIdentifier, forHTTPHeaderField: "X-Ios-Bundle-Identifier")
-        request.setValue(
-            "routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline,"
-                + "routes.legs.steps.navigationInstruction.instructions",
-            forHTTPHeaderField: "X-Goog-FieldMask"
-        )
-        func waypoint(_ coordinate: Coordinate) -> [String: Any] {
-            ["location": ["latLng": ["latitude": coordinate.latitude, "longitude": coordinate.longitude]]]
-        }
-        var body: [String: Any] = [
-            "origin": waypoint(meeting.origin), "destination": waypoint(meeting.coordinate),
-            "travelMode": meeting.mode.rawValue, "languageCode": "ko-KR", "units": "METRIC",
-        ]
-        // TRANSIT supports arrivalTime. WALK uses the duration returned for this request.
-        if meeting.mode == .transit {
-            body["arrivalTime"] = ISO8601DateFormatter().string(from: meeting.target)
-        }
-        if meeting.mode == .drive {
-            body["routingPreference"] = "TRAFFIC_AWARE"
-        }
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        let (data, response) = try await URLSession.shared.data(for: request)
-
-        guard let http = response as? HTTPURLResponse else { throw Failure.malformed }
-
-        guard (200...299).contains(http.statusCode) else { throw Failure.http(http.statusCode) }
-
-        let decoded = try JSONDecoder().decode(Response.self, from: data)
-
-        guard let route = decoded.routes?.first else { throw Failure.noRoute }
-
-        guard let seconds = DeparturePlanner.parseDuration(route.duration) else {
-            throw Failure.malformed
-        }
-
-        return .init(
-            seconds: seconds,
-            distanceMeters: route.distanceMeters ?? 0,
-            source: "Google Routes API",
-            fetchedAt: .now,
-            encodedPolyline: route.polyline?.encodedPolyline,
-            instructions: route.legs?.flatMap { $0.steps ?? [] }
-                .compactMap { $0.navigationInstruction?.instructions }
-        )
+        let request = try KakaoAPI.routeRequest(from: meeting.origin, to: meeting.coordinate, key: key)
+        return try KakaoAPI.decodeRoute(await KakaoAPI.data(for: request))
     }
 }
 
@@ -224,7 +133,9 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate, @un
     func friendDeparture(peer: Peer) async throws {
         let center = UNUserNotificationCenter.current()
         let settings = await center.notificationSettings()
-        guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else { return }
+        guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else {
+            return
+        }
         let content = UNMutableNotificationContent()
         content.title = "\(peer.name)님이 출발했어요"
         content.body = "앱에서 친구의 이동 상태를 확인해 주세요."

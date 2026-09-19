@@ -214,7 +214,7 @@ extension ConnectionView {
                             || (joining ? CloudInvitation.url(code) == nil : !store.hasDestination)
                     )
                 } footer: {
-                    Text("iCloud에 로그인한 친구를 초대해 주세요. 위치는 함께 보기에서 공유를 켰을 때만 전달돼요.")
+                    Text("모임에 연결하면 위치 권한을 허용한 기기의 실시간 위치가 친구에게 자동으로 공유돼요. 약속을 종료하면 공유도 끝나요.")
                 }
             }
             if let issue = store.connectionError {

@@ -1,6 +1,6 @@
 import Foundation
 
-enum GoogleConfiguration {
+enum MapConfiguration {
     static func configured(_ name: String) -> String {
         guard let value = Bundle.main.object(forInfoDictionaryKey: name) as? String else {
             return ""
@@ -9,6 +9,6 @@ enum GoogleConfiguration {
         let key = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return key.isEmpty || key.contains("$(") || key.hasPrefix("YOUR_") ? "" : key
     }
-    static var placesKey: String { configured("GOOGLE_PLACES_API_KEY") }
-    static var routesKey: String { configured("GOOGLE_ROUTES_API_KEY") }
+    static var nativeKey: String { configured("KAKAO_NATIVE_APP_KEY") }
+    static var restKey: String { configured("KAKAO_REST_API_KEY") }
 }

@@ -41,7 +41,7 @@ struct Meeting: Codable, Equatable {
     var coordinate = Coordinate.unset
     var origin = Coordinate.unset
     var target = Date().addingTimeInterval(45 * 60)
-    var bufferMinutes = 5
+    var bufferMinutes = 0
     var mode = TravelMode.walk
     var friendName = "친구"
 }
@@ -53,6 +53,7 @@ struct RouteEstimate: Codable, Equatable {
     var fetchedAt: Date
     var encodedPolyline: String?
     var instructions: [String]? = nil
+    var coordinates: [Coordinate]? = nil
     static var demo: Self { .init(seconds: 18 * 60, distanceMeters: 1300, source: "시뮬레이션", fetchedAt: .now) }
     var minutes: Int { Int(ceil(seconds / 60)) }
 }
@@ -90,7 +91,7 @@ enum PromptKind: String, Identifiable {
     var body: String {
         switch self {
         case .soon: "슬슬 마무리해 볼까요? 출발 5분 전에 알려드려요."
-        case .now: "예상 이동시간과 여유시간을 고려한 출발 안내예요."
+        case .now: "도보 이동시간을 고려한 출발 안내예요."
         case .movement: "위치가 달라졌어요. 약속 장소로 출발했다면 확인해 주세요."
         }
     }

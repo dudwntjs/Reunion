@@ -8,8 +8,67 @@ final class ReunionUITests: XCTestCase {
         app.launchArguments = ["--uitesting"]
         app.launch()
     }
-
-    func testMultipleFriendsHaveSeparateStatusRows() throws {
+    func reveal(_ element: XCUIElement) {
+        for _ in 0..<7 {
+            if element.exists && element.isHittable { return }
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.99, dy: 0.8))
+                .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.99, dy: 0.3)))
+        }
+    }
+    func capture(_ name: String) {
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = name
+        shot.lifetime = .keepAlways
+        add(shot)
+    }
+    func testThreeStatusButtonsWorkWithoutRouteOrLocationSharing() {
+        XCTAssertEqual(app.tabBars.buttons.count, 2)
+        XCTAssertFalse(app.otherElements["togetherMap"].exists)
+        XCTAssertFalse(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "여유시간")).firstMatch.exists)
+        XCTAssertFalse(app.pickers.firstMatch.exists)
+        for phase in ["moving", "arrived", "free"] {
+            let button = app.buttons["phase-\(phase)"]
+            button.tap()
+            XCTAssertEqual(button.value as? String, "선택됨")
+        }
+        capture("kakao-reunion-status")
+    }
+    func testPlaceSelectionAndAppointmentUseOnlyTogetherMap() {
+        app.terminate()
+        app.launchEnvironment["REUNION_TEST_PLACES"] =
+            #"[{"id":"cityhall","displayName":{"text":"서울시청"},"formattedAddress":"서울 중구 세종대로 110","location":{"latitude":37.5665,"longitude":126.978}}]"#
+        app.launch()
+        app.buttons["findPlace"].tap()
+        let query = app.textFields["placeQuery"]
+        XCTAssertTrue(query.waitForExistence(timeout: 5))
+        query.tap()
+        query.typeText("서울시청")
+        app.buttons["searchPlaces"].tap()
+        let result = app.buttons["placeResult-cityhall"]
+        XCTAssertTrue(result.waitForExistence(timeout: 5))
+        result.tap()
+        let map = app.otherElements["togetherMap"]
+        XCTAssertTrue(map.waitForExistence(timeout: 5))
+        XCTAssertGreaterThan(map.frame.width, 100)
+        XCTAssertGreaterThan(map.frame.height, 100)
+        capture("kakao-live-map-first-open")
+        app.tabBars.buttons["재합류"].tap()
+        app.tabBars.buttons["함께 보기"].tap()
+        XCTAssertTrue(map.waitForExistence(timeout: 5))
+        capture("kakao-live-map-reopened")
+        let choose = app.buttons["choosePlace"]
+        reveal(choose)
+        choose.tap()
+        XCTAssertTrue(app.navigationBars["약속 정하기"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.otherElements["togetherMap"].isHittable)
+        XCTAssertTrue(app.buttons["saveMeeting"].isEnabled)
+        app.buttons["saveMeeting"].tap()
+        app.tabBars.buttons["재합류"].tap()
+        XCTAssertTrue(app.staticTexts["서울시청"].exists)
+        XCTAssertFalse(app.otherElements["togetherMap"].exists)
+        capture("kakao-selected-meeting")
+    }
+    func testMultipleFriendsHaveSeparateStates() throws {
         app.terminate()
         let peers: [[String: Any]] = [
             [
@@ -32,64 +91,16 @@ final class ReunionUITests: XCTestCase {
         app.launch()
         app.tabBars.buttons["함께 보기"].tap()
         reveal(app.staticTexts["4명 중 1명이 도착했어요"])
-        XCTAssertTrue(app.staticTexts["4명 중 1명이 도착했어요"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["4명 중 1명이 도착했어요"].exists)
         for name in ["민지", "지우", "수현"] {
             reveal(app.staticTexts[name])
             XCTAssertTrue(app.staticTexts[name].exists)
         }
-        capture("multiple-friends")
+        capture("kakao-friends")
     }
-
-    func reveal(_ element: XCUIElement) {
-        for _ in 0..<5 {
-            if element.exists { return }
-            app.coordinate(withNormalizedOffset: CGVector(dx: 0.99, dy: 0.8))
-                .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.99, dy: 0.3)))
-        }
-    }
-
-    func capture(_ name: String) {
-        let shot = XCTAttachment(screenshot: app.screenshot())
-        shot.name = name
-        shot.lifetime = .keepAlways
-        add(shot)
-    }
-
-    func testNativeTabsAndNoDeveloperConfiguration() {
-        XCTAssertTrue(app.buttons["findPlace"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.tabBars.buttons["재합류"].exists)
-        XCTAssertTrue(app.tabBars.buttons["함께 보기"].exists)
-        XCTAssertEqual(app.tabBars.buttons.count, 2)
-        XCTAssertFalse(app.buttons["settings"].exists)
-        XCTAssertFalse(app.buttons["connect"].exists)
-        capture("01-native-reunion")
+    func testInvitationUsesICloudWithoutKeyFields() {
         app.tabBars.buttons["함께 보기"].tap()
-        XCTAssertTrue(app.staticTexts["친구 연결을 기다리고 있어요"].exists)
-        XCTAssertEqual(app.buttons.matching(identifier: "connect").count, 1)
-        XCTAssertFalse(app.buttons["showMeetingRoute"].exists)
-        reveal(app.switches["sharingToggle"])
-        XCTAssertTrue(app.switches["sharingToggle"].waitForExistence(timeout: 3))
-        XCTAssertFalse(app.switches["sharingToggle"].isEnabled)
-        capture("02-native-together")
-    }
-
-    func testNativeMeetingFormRequiresAPlace() {
-        app.buttons["findPlace"].tap()
-        XCTAssertTrue(app.navigationBars["약속 정하기"].waitForExistence(timeout: 5))
-        let system = XCUIApplication(bundleIdentifier: "com.apple.springboard")
-        if system.alerts.buttons["앱을 사용하는 동안 허용"].waitForExistence(timeout: 2) {
-            system.alerts.buttons["앱을 사용하는 동안 허용"].tap()
-        } else if system.alerts.buttons["Allow While Using App"].exists {
-            system.alerts.buttons["Allow While Using App"].tap()
-        }
-        XCTAssertFalse(app.buttons["saveMeeting"].isEnabled)
-        XCTAssertTrue(app.staticTexts["약속 시간"].exists)
-        XCTAssertTrue(app.searchFields.firstMatch.exists)
-        capture("03-native-meeting")
-    }
-
-    func testInvitationHasNoServerOrAPIKeyFields() {
-        app.tabBars.buttons["함께 보기"].tap()
+        reveal(app.buttons["connect"])
         app.buttons["connect"].tap()
         XCTAssertTrue(app.navigationBars["친구와 연결"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.textFields["내 이름"].exists)
@@ -101,6 +112,6 @@ final class ReunionUITests: XCTestCase {
         link.tap()
         link.typeText("123456")
         XCTAssertFalse(app.buttons["참여하기"].isEnabled)
-        capture("04-native-invite")
+        capture("kakao-cloud-invite")
     }
 }

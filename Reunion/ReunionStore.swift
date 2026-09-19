@@ -24,8 +24,8 @@ final class ReunionStore {
     var myStatus: String {
         switch phase {
         case .free: "자유시간 중"
-        case .moving: "약속 장소로 이동 중"
-        case .arrived: "도착 · 친구 기다리는 중"
+        case .moving: "출발했어요"
+        case .arrived: "도착했어요"
         case .complete: "재합류 완료"
         }
     }
@@ -114,11 +114,13 @@ final class ReunionStore {
             DeparturePlanner.departure(
                 target: meeting.target,
                 duration: $0.seconds,
-                bufferMinutes: meeting.bufferMinutes
+                bufferMinutes: 0
             )
         }
     }
-    var eta: Date { (departedAt ?? .now).addingTimeInterval(estimate?.seconds ?? 0) }
+    var eta: Date {
+        max(departedAt ?? .now, estimate?.fetchedAt ?? .distantPast).addingTimeInterval(estimate?.seconds ?? 0)
+    }
     var myCoordinate: Coordinate? {
         guard sharingEnabled, locationError == nil, phase != .complete, let location = currentLocation else {
             return nil
@@ -159,7 +161,7 @@ final class ReunionStore {
                 phase = Self.restore(JourneyPhase.self, key: "phase") ?? .free
                 estimate = Self.restore(RouteEstimate.self, key: "estimate")
                 departedAt = Self.restore(Date.self, key: "departedAt")
-                sharingEnabled = phase != .complete && (Self.restore(Bool.self, key: "sharingEnabled") ?? false)
+                sharingEnabled = phase != .complete && !pendingEnd
                 name = Self.restore(String.self, key: "name") ?? "나"
             }
             events = Self.restore([StudyEvent].self, key: "events") ?? []
@@ -176,6 +178,9 @@ final class ReunionStore {
                 friendJoined = !peers.isEmpty
             }
         #endif
+        meeting.mode = .walk
+        meeting.bufferMinutes = 0
+        if estimate?.source != "카카오 도보 경로" { estimate = nil }
         locationService.onLocation = { [weak self] location in
             self?.receivedLocation(location)
         }
@@ -224,6 +229,8 @@ final class ReunionStore {
 
     func updateMeeting(_ value: Meeting) {
         meeting = value
+        meeting.mode = .walk
+        meeting.bufferMinutes = 0
         routeRevision = UUID()
         estimate = nil
         save(meeting, key: "meeting")
@@ -253,14 +260,15 @@ final class ReunionStore {
             isLoading = false
         }
         do {
-            let result = try await RoutesClient().estimate(meeting: requested, key: GoogleConfiguration.routesKey)
+            let result = try await RoutesClient().estimate(meeting: requested, key: MapConfiguration.restKey)
 
             guard revision == routeRevision else { return }
 
             estimate = result
+            mapFocusRequest += 1
             save(estimate, key: "estimate")
-            log("route_success", "\(result.seconds)s; \(result.distanceMeters)m; Google Routes API")
-            message = "Google 실제 경로로 출발 시간을 계산했어요"
+            log("route_success", "\(result.seconds)s; \(result.distanceMeters)m; 카카오 도보 경로")
+            message = "카카오 도보 경로로 출발 시간을 계산했어요"
             if notificationsEnabled {
                 await enableNotifications()
             }
@@ -382,41 +390,33 @@ final class ReunionStore {
         log("reminder_confirmed", kind.rawValue)
     }
 
-    func depart() async {
-        guard credentials != nil else {
-            error = "먼저 친구 연결에서 같은 모임에 참여해 주세요."
-            return
-        }
+    func depart() async { await setJourneyPhase(.moving) }
 
-        guard phase == .free, let estimate else {
-            error = "먼저 경로를 계산해 주세요."
-            return
-        }
-
-        if !isDemo && (currentLocation == nil || Date().timeIntervalSince(locationUpdated ?? .distantPast) > 30) {
-            error = "실제 위치 공유를 위해 현재 위치 권한을 허용하고 위치를 받아 주세요."
-            startLocation()
-            return
-        }
-        phase = .moving
-        departedAt = .now
+    func setJourneyPhase(_ newPhase: JourneyPhase) async {
+        guard newPhase != .complete, phase != .complete, newPhase != phase else { return }
+        phase = newPhase
         prompt = nil
         reminderRevision = UUID()
         NotificationService.shared.cancel()
+        notificationsEnabled = false
+        if newPhase == .moving {
+            departedAt = .now
+            if let estimate { startActivity(duration: estimate.seconds) }
+        } else if newPhase == .free {
+            departedAt = nil
+            if let activity { await activity.end(nil, dismissalPolicy: .immediate) }
+            activity = nil
+        }
         save(phase, key: "phase")
         save(departedAt, key: "departedAt")
-        log("departure_confirmed", isDemo ? "시뮬레이션" : "실제 참여자 확인")
-        if isDemo {
-            demoRunning = true
-            message = "출발을 확인했어요 · 친구 알림은 체험용이에요"
-        } else {
-            if sharingEnabled {
-                locationService.enableBackgroundSharing()
-            }
+        log("status_confirmed", newPhase.rawValue)
+        if credentials != nil {
             await sync()
-            message = connectionError == nil ? "출발 상태를 친구에게 전달했어요" : "출발을 기록했어요. 연결되면 친구에게 전달돼요."
+            message = connectionError == nil ? "상태를 친구들에게 전달했어요" : "상태를 저장했어요. 연결되면 전달돼요."
+        } else {
+            message = "상태를 변경했어요. 친구와 연결하면 함께 볼 수 있어요."
         }
-        startActivity(duration: estimate.seconds)
+        await updateActivity()
     }
 
     func startActivity(duration: TimeInterval) {
@@ -471,22 +471,7 @@ final class ReunionStore {
         )
     }
 
-    func arrive() async {
-        guard phase == .moving else { return }
-
-        phase = .arrived
-        demoRunning = false
-        demoProgress = 1
-        if !sharingEnabled {
-            locationService.stop()
-        }
-        save(phase, key: "phase")
-        log("arrival_confirmed")
-        if !isDemo {
-            await sync()
-        }
-        await updateActivity()
-    }
+    func arrive() async { await setJourneyPhase(.arrived) }
 
     func finish() async {
         // Stop this device immediately, even if the iCloud is unreachable.
@@ -640,12 +625,10 @@ final class ReunionStore {
             UserDefaults.standard.removeObject(forKey: "reunion.pendingInvitation")
             _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge])
             let localOrigin = meeting.origin
-            let localMode = meeting.mode
-            let buffer = meeting.bufferMinutes
             meeting = reply.session.meeting
             meeting.origin = localOrigin
-            meeting.mode = localMode
-            meeting.bufferMinutes = buffer
+            meeting.mode = .walk
+            meeting.bufferMinutes = 0
             phase = .free
             friendPhase = .free
             friendCoordinate = nil
@@ -666,7 +649,7 @@ final class ReunionStore {
             save(contactCount, key: "contacts")
             log("field_session_connected")
             apply(reply.session)
-            startLocation()
+            await setSharing(true)
             return true
         } catch {
             self.error = error.localizedDescription
@@ -689,7 +672,8 @@ final class ReunionStore {
                 sharingEnabled: sentSharing,
                 coordinate: myCoordinate,
                 coordinateUpdatedAt: locationUpdated,
-                eta: phase == .moving ? eta : nil
+                eta: phase == .moving && estimate != nil ? eta : nil,
+                heading: (freshLocation?.course ?? -1) >= 0 ? freshLocation?.course : nil
             )
             apply(remote)
             lastSync = .now
@@ -736,7 +720,7 @@ final class ReunionStore {
 
         let incoming = remote.participants.filter { $0.id != credentials?.participantID }
         let departed = incoming.filter { peer in
-            peers.contains { $0.id == peer.id && $0.phase == "free" } && peer.phase == "moving"
+            peers.contains { $0.id == peer.id && $0.phase != "moving" } && peer.phase == "moving"
         }
         if !departed.isEmpty {
             message = departed.map(\.name).joined(separator: ", ") + "님이 출발했어요"

@@ -8,7 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		00000000000000000000001E /* ReunionActivity.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 00000000000000000000000B /* ReunionActivity.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		00000000000000000000001F /* GoogleMaps in Frameworks */ = {isa = PBXBuildFile; productRef = 000000000000000000000020 /* GoogleMaps */; };
+		00000000000000000000001F /* KakaoMapsSDK-SPM in Frameworks */ = {isa = PBXBuildFile; productRef = 000000000000000000000020 /* KakaoMapsSDK-SPM */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -77,7 +77,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				00000000000000000000001F /* GoogleMaps in Frameworks */,
+				00000000000000000000001F /* KakaoMapsSDK-SPM in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -151,7 +151,7 @@
 			);
 			name = Reunion;
 			packageProductDependencies = (
-				000000000000000000000020 /* GoogleMaps */,
+				000000000000000000000020 /* KakaoMapsSDK-SPM */,
 			);
 			productName = Reunion;
 			productReference = 00000000000000000000000A /* Reunion.app */;
@@ -240,7 +240,7 @@
 			);
 			mainGroup = 000000000000000000000001;
 			packageReferences = (
-				000000000000000000000021 /* XCRemoteSwiftPackageReference "ios-maps-sdk" */,
+				000000000000000000000021 /* XCRemoteSwiftPackageReference "KakaoMapsSDK-SPM" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 000000000000000000000006 /* Products */;
@@ -525,21 +525,21 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		000000000000000000000021 /* XCRemoteSwiftPackageReference "ios-maps-sdk" */ = {
+		000000000000000000000021 /* XCRemoteSwiftPackageReference "KakaoMapsSDK-SPM" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/googlemaps/ios-maps-sdk";
+			repositoryURL = "https://github.com/kakao-mapsSDK/KakaoMapsSDK-SPM.git";
 			requirement = {
 				kind = exactVersion;
-				version = 11.1.0;
+				version = 2.12.19;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		000000000000000000000020 /* GoogleMaps */ = {
+		000000000000000000000020 /* KakaoMapsSDK-SPM */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 000000000000000000000021 /* XCRemoteSwiftPackageReference "ios-maps-sdk" */;
-			productName = GoogleMaps;
+			package = 000000000000000000000021 /* XCRemoteSwiftPackageReference "KakaoMapsSDK-SPM" */;
+			productName = "KakaoMapsSDK-SPM";
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

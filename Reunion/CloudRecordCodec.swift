@@ -52,6 +52,7 @@ enum CloudRecordCodec {
                     peer.coordinate = nil
                     peer.coordinateUpdatedAt = nil
                     peer.eta = nil
+                    peer.heading = nil
                 }
                 return peer
             }

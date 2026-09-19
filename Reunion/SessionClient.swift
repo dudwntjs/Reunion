@@ -166,7 +166,8 @@ actor SessionClient {
         sharingEnabled: Bool,
         coordinate: Coordinate?,
         coordinateUpdatedAt: Date?,
-        eta: Date?
+        eta: Date?,
+        heading: Double? = nil
     ) async throws -> RemoteSession {
         try await validate(credentials)
         let db = database(credentials)
@@ -185,6 +186,7 @@ actor SessionClient {
             peer.coordinate = sharingEnabled ? coordinate : nil
             peer.coordinateUpdatedAt = peer.coordinate == nil ? nil : coordinateUpdatedAt?.timeIntervalSince1970
             peer.eta = eta?.timeIntervalSince1970
+            peer.heading = sharingEnabled ? heading : nil
             if peer == previous && Date().timeIntervalSince1970 - previous.updatedAt < 30 {
                 return try snapshot(records)
             }
@@ -213,6 +215,7 @@ actor SessionClient {
                 peer.coordinate = nil
                 peer.coordinateUpdatedAt = nil
                 peer.eta = nil
+                peer.heading = nil
                 slot["peer"] = try JSONEncoder().encode(peer) as NSData
             }
             do {

@@ -18,12 +18,10 @@
 	<string>1</string>
 	<key>CKSharingSupported</key>
 	<true/>
-	<key>GOOGLE_MAPS_API_KEY</key>
-	<string>$(GOOGLE_MAPS_API_KEY)</string>
-	<key>GOOGLE_PLACES_API_KEY</key>
-	<string>$(GOOGLE_PLACES_API_KEY)</string>
-	<key>GOOGLE_ROUTES_API_KEY</key>
-	<string>$(GOOGLE_ROUTES_API_KEY)</string>
+	<key>KAKAO_NATIVE_APP_KEY</key>
+	<string>$(KAKAO_NATIVE_APP_KEY)</string>
+	<key>KAKAO_REST_API_KEY</key>
+	<string>$(KAKAO_REST_API_KEY)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSLocationWhenInUseUsageDescription</key>

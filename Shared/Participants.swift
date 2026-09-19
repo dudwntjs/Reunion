@@ -9,6 +9,7 @@ struct Peer: Codable, Identifiable, Equatable {
     var updatedAt: Double
     var coordinateUpdatedAt: Double?
     var eta: Double?
+    var heading: Double? = nil
 }
 extension Peer {
     var sharesLocation: Bool { sharingEnabled ?? (coordinate != nil) }
@@ -19,7 +20,7 @@ extension Peer {
     }
     var status: String {
         switch phase {
-        case "moving": "만나러 오는 중"
+        case "moving": "출발했어요"
         case "arrived": "도착했어요"
         case "complete": "재합류 완료"
         default: "자유시간 중"

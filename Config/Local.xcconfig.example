@@ -1,7 +1,4 @@
-// Google Cloud: enable Maps SDK for iOS, Places API (New), Routes API + billing.
-// Map rendering key (restrict to the iOS bundle identifier).
-GOOGLE_MAPS_API_KEY = YOUR_MAPS_SDK_KEY
-// Web service key for the private PoC (restrict APIs to Places API New and Routes API).
-GOOGLE_PLACES_API_KEY = YOUR_SEARCH_AND_ROUTES_KEY
-GOOGLE_ROUTES_API_KEY = YOUR_SEARCH_AND_ROUTES_KEY
+// Kakao Developers: enable Maps and register iOS bundle com.reunion.poc.
+KAKAO_NATIVE_APP_KEY = YOUR_NATIVE_APP_KEY
+KAKAO_REST_API_KEY = YOUR_REST_API_KEY
 // DEVELOPMENT_TEAM = YOUR_APPLE_TEAM_ID
