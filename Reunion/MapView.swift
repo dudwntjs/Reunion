@@ -343,33 +343,35 @@ struct KakaoMapCanvas: UIViewRepresentable {
         }
         private static func icon(_ pin: MapPin) -> UIImage {
             let text = String(pin.title.prefix(12)) + (pin.stale ? " · 마지막 위치" : "")
-            let font = UIFont.systemFont(ofSize: 12, weight: .semibold)
+            let font = UIFont.systemFont(ofSize: 11, weight: .semibold)
             let textWidth = (text as NSString).size(withAttributes: [.font: font]).width
-            let width = max(60, textWidth + 20)
-            return UIGraphicsImageRenderer(size: CGSize(width: width, height: 80))
+            let width = max(44, textWidth + 12)
+            let scale: CGFloat = 0.6
+            return UIGraphicsImageRenderer(size: CGSize(width: width * scale, height: 56 * scale))
                 .image { renderer in
                     let context = renderer.cgContext
+                    context.scaleBy(x: scale, y: scale)
                     context.setAlpha(pin.stale ? 0.6 : 1)
                     UIColor.secondarySystemBackground.setFill()
-                    UIBezierPath(roundedRect: CGRect(x: 1, y: 1, width: width - 2, height: 24), cornerRadius: 12).fill()
+                    UIBezierPath(roundedRect: CGRect(x: 1, y: 1, width: width - 2, height: 20), cornerRadius: 10).fill()
                     (text as NSString)
-                        .draw(at: CGPoint(x: 10, y: 5), withAttributes: [.font: font, .foregroundColor: UIColor.label])
+                        .draw(at: CGPoint(x: 6, y: 3), withAttributes: [.font: font, .foregroundColor: UIColor.label])
                     UIColor.white.setFill()
-                    UIBezierPath(ovalIn: CGRect(x: width / 2 - 23, y: 29, width: 46, height: 46)).fill()
+                    UIBezierPath(ovalIn: CGRect(x: width / 2 - 16, y: 22, width: 32, height: 32)).fill()
                     pin.color.setFill()
-                    UIBezierPath(ovalIn: CGRect(x: width / 2 - 20, y: 32, width: 40, height: 40)).fill()
+                    UIBezierPath(ovalIn: CGRect(x: width / 2 - 14, y: 24, width: 28, height: 28)).fill()
                     let tail = UIBezierPath()
-                    tail.move(to: CGPoint(x: width / 2 - 6, y: 68))
-                    tail.addLine(to: CGPoint(x: width / 2, y: 80))
-                    tail.addLine(to: CGPoint(x: width / 2 + 6, y: 68))
+                    tail.move(to: CGPoint(x: width / 2 - 4, y: 48))
+                    tail.addLine(to: CGPoint(x: width / 2, y: 56))
+                    tail.addLine(to: CGPoint(x: width / 2 + 4, y: 48))
                     tail.close()
                     tail.fill()
                     context.saveGState()
-                    context.translateBy(x: width / 2, y: 52)
+                    context.translateBy(x: width / 2, y: 38)
                     if let heading = pin.heading { context.rotate(by: heading * .pi / 180) }
                     UIImage(systemName: pin.heading == nil ? pin.symbol : "location.north.fill")?
                         .withTintColor(.white, renderingMode: .alwaysOriginal)
-                        .draw(in: CGRect(x: -10, y: -11, width: 20, height: 22))
+                        .draw(in: CGRect(x: -7, y: -8, width: 14, height: 16))
                     context.restoreGState()
                 }
         }
